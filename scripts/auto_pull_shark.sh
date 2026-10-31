@@ -46,10 +46,8 @@ DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name
 ok "Repository: $REPO | Default branch: $DEFAULT_BRANCH"
 
 # Branch protection check (404 = not protected; 403 = feature unavailable on plan -> treat as unprotected)
-set +e
-PROTECTION_OUTPUT="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" 2>&1)"
-PROTECTION_STATUS=$?
-set -e
+PROTECTION_STATUS=0
+PROTECTION_OUTPUT="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" 2>&1)" || PROTECTION_STATUS=$?
 if [[ $PROTECTION_STATUS -eq 0 ]]; then
   REQUIRED_REVIEWS="$(gh api "repos/$REPO/branches/$DEFAULT_BRANCH/protection" \
     -q '.required_pull_request_reviews.required_approving_review_count // 0' 2>/dev/null || echo 0)"
