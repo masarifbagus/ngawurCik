@@ -69,8 +69,22 @@ fi
 SQUASH_ALLOWED="$(gh api "repos/$REPO" -q .allow_squash_merge)"
 [[ "$SQUASH_ALLOWED" == "true" ]] || fail "Squash merge is disabled in repository settings."
 
+# Sync local default branch with remote (fetch + ff to named ref, with retries).
+# Avoids transient "Cannot fast-forward to multiple branches" errors from `git pull`.
+sync_default_branch() {
+  local attempt
+  for attempt in 1 2 3; do
+    if git fetch -q origin "$DEFAULT_BRANCH" && git merge -q --ff-only "origin/$DEFAULT_BRANCH"; then
+      return 0
+    fi
+    log "Sync attempt $attempt failed, retrying in 3s..."
+    sleep 3
+  done
+  return 1
+}
+
 git checkout "$DEFAULT_BRANCH" >/dev/null 2>&1
-git pull --ff-only origin "$DEFAULT_BRANCH"
+sync_default_branch
 
 # ---------------------------------------------------------------------------
 # 2. Main loop
@@ -99,7 +113,7 @@ for (( i=START; i<=TOTAL; i++ )); do
 
   # gh may already switch back & delete the local branch; make it idempotent
   git checkout "$DEFAULT_BRANCH" >/dev/null 2>&1
-  git pull -q --ff-only origin "$DEFAULT_BRANCH"
+  sync_default_branch
   git branch -D "$BRANCH" >/dev/null 2>&1 || true
 
   printf '\033[1;32m[%d/%d] Completed\033[0m\n' "$i" "$TOTAL"
